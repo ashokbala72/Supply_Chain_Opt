@@ -117,6 +117,9 @@ st.set_page_config(page_title="Supply Chain Optimization Assistant", layout="wid
 
 main_tabs = st.tabs(["📘 Overview", "🏠 Main App"])
 
+# -----------------------------
+# Overview Tab
+# -----------------------------
 with main_tabs[0]:
     st.title("📘 What This App Does")
     st.markdown("""
@@ -131,91 +134,94 @@ with main_tabs[0]:
     - 🤖 **Azure OpenAI-powered executive summaries**
     """)
 
+# -----------------------------
+# Main App Tab
+# -----------------------------
 with main_tabs[1]:
     st.title("🏭 Supply Chain Optimization Assistant")
 
-company_type = st.selectbox("Select Company Type", [
-    "Transmission Operator",
-    "Distribution Operator",
-    "Generation Company",
-    "Retail Energy Supplier",
-    "Integrated Utility"
-])
-
-# -----------------------------
-# Non-Retail Tabs
-# -----------------------------
-if company_type != "Retail Energy Supplier":
-    forecast_months = st.slider("📆 Forecast Horizon (months)", 1, 12, 3)
-
-    tabs = st.tabs([
-        "📦 Spare Parts", "📊 Forecast Qty", "📉 Emissions",
-        "📊 GenAI Summary", "🏭 Vendors", "🔁 Reorder Parts"
+    company_type = st.selectbox("Select Company Type", [
+        "Transmission Operator",
+        "Distribution Operator",
+        "Generation Company",
+        "Retail Energy Supplier",
+        "Integrated Utility"
     ])
 
-    with tabs[0]:
-        df_spares = generate_parts(company_type)
-        df_spares["Forecast Qty"] = (df_spares["Installed Base"] * df_spares["Failure Rate"] * forecast_months).round().astype(int)
-        df_spares["Criticality"] = df_spares.apply(lambda row: calculate_criticality(pd.Series({
-            "Stock": row["Stock"],
-            "Lead Time (days)": row["Lead Time (days)"],
-            "Failure Rate": row["Failure Rate"],
-            "Forecast Qty": row["Forecast Qty"]
-        })), axis=1)
-        df_spares["Criticality"] = df_spares["Criticality"].apply(get_colored_circle)
-        st.subheader(f"📦 Spare Parts for {company_type}")
-        st.dataframe(df_spares, use_container_width=True)
-        st.session_state.df_spares = df_spares
+    # -----------------------------
+    # Non-Retail Tabs
+    # -----------------------------
+    if company_type != "Retail Energy Supplier":
+        forecast_months = st.slider("📆 Forecast Horizon (months)", 1, 12, 3)
 
-    with tabs[1]:
-        st.subheader("📊 Forecasted Demand")
-        forecast_df = st.session_state.df_spares[["Part Name", "Installed Base", "Failure Rate", "Forecast Qty", "Stock"]]
-        forecast_df["Expected Shortage"] = forecast_df["Forecast Qty"] - forecast_df["Stock"]
-        st.dataframe(forecast_df, use_container_width=True)
+        tabs = st.tabs([
+            "📦 Spare Parts", "📊 Forecast Qty", "📉 Emissions",
+            "📊 GenAI Summary", "🏭 Vendors", "🔁 Reorder Parts"
+        ])
 
-    with tabs[2]:
-        emission_val = round(random.uniform(1000, 9000), 2)
-        st.subheader("📉 Estimated Emissions")
-        st.metric("Emissions (kg CO₂)", emission_val)
+        with tabs[0]:
+            df_spares = generate_parts(company_type)
+            df_spares["Forecast Qty"] = (df_spares["Installed Base"] * df_spares["Failure Rate"] * forecast_months).round().astype(int)
+            df_spares["Criticality"] = df_spares.apply(lambda row: calculate_criticality(pd.Series({
+                "Stock": row["Stock"],
+                "Lead Time (days)": row["Lead Time (days)"],
+                "Failure Rate": row["Failure Rate"],
+                "Forecast Qty": row["Forecast Qty"]
+            })), axis=1)
+            df_spares["Criticality"] = df_spares["Criticality"].apply(get_colored_circle)
+            st.subheader(f"📦 Spare Parts for {company_type}")
+            st.dataframe(df_spares, use_container_width=True)
+            st.session_state.df_spares = df_spares
 
-    with tabs[3]:
-        st.subheader("📊 GenAI Summary")
-        summary_prompt = f"Generate an executive summary for {company_type} with spare parts: {df_spares.to_dict(orient='records')}."
-        st.info(call_gpt(summary_prompt))
+        with tabs[1]:
+            st.subheader("📊 Forecasted Demand")
+            forecast_df = st.session_state.df_spares[["Part Name", "Installed Base", "Failure Rate", "Forecast Qty", "Stock"]]
+            forecast_df["Expected Shortage"] = forecast_df["Forecast Qty"] - forecast_df["Stock"]
+            st.dataframe(forecast_df, use_container_width=True)
 
-    with tabs[4]:
-        st.subheader("🏭 Vendor Overview")
-        parts = df_spares["Part Name"].unique()
-        vendor_records = []
-        for part in parts:
-            for loc in random.sample(["London", "Leeds", "Glasgow", "Manchester", "Bristol"], 3):
-                vendor_records.append({
-                    "Part Name": part,
-                    "Vendor": f"{part[:3].upper()}-{random.randint(10,99)}-{loc[:2].upper()}",
-                    "Unit Cost (£)": round(random.uniform(100, 500), 2),
-                    "Lead Time (days)": random.choice([7, 14, 21]),
-                    "Reliability (%)": round(random.uniform(85, 99), 2)
-                })
-        vendor_df = pd.DataFrame(vendor_records)
-        st.dataframe(vendor_df, use_container_width=True)
+        with tabs[2]:
+            emission_val = round(random.uniform(1000, 9000), 2)
+            st.subheader("📉 Estimated Emissions")
+            st.metric("Emissions (kg CO₂)", emission_val)
 
-    with tabs[5]:
-        st.subheader("🔁 Reorder Parts")
-        df_spares["EOQ"] = ((2 * df_spares["Forecast Qty"] * 50) / 10) ** 0.5
-        df_spares["EOQ"] = df_spares["EOQ"].round().astype(int)
-        df_spares["Expected Shortage"] = df_spares["Forecast Qty"] - df_spares["Stock"]
-        df_spares["Recommended Qty"] = df_spares.apply(lambda r: max(r["EOQ"], r["Expected Shortage"]), axis=1)
-        st.dataframe(df_spares[["Part Name", "EOQ", "Recommended Qty", "Stock", "Forecast Qty"]], use_container_width=True)
+        with tabs[3]:
+            st.subheader("📊 GenAI Summary")
+            summary_prompt = f"Generate an executive summary for {company_type} with spare parts: {df_spares.to_dict(orient='records')}."
+            st.info(call_gpt(summary_prompt))
 
-# -----------------------------
-# Retail Tabs (unchanged except GenAI via Azure)
-# -----------------------------
-else:
-    st.subheader("💰 Retail Energy Supplier - Tariff & Demand")
-    tariff_df = pd.DataFrame([
-        {"Customer Type": "Residential", "Rate (£/MWh)": 165.5, "Volume (MWh)": 18000},
-        {"Customer Type": "Small Business", "Rate (£/MWh)": 172.1, "Volume (MWh)": 4200},
-        {"Customer Type": "Large Commercial", "Rate (£/MWh)": 158.2, "Volume (MWh)": 11500}
-    ])
-    st.dataframe(tariff_df, use_container_width=True)
-    st.info(call_gpt(f"Analyze tariff strategy: {tariff_df.to_dict(orient='records')}"))
+        with tabs[4]:
+            st.subheader("🏭 Vendor Overview")
+            parts = df_spares["Part Name"].unique()
+            vendor_records = []
+            for part in parts:
+                for loc in random.sample(["London", "Leeds", "Glasgow", "Manchester", "Bristol"], 3):
+                    vendor_records.append({
+                        "Part Name": part,
+                        "Vendor": f"{part[:3].upper()}-{random.randint(10,99)}-{loc[:2].upper()}",
+                        "Unit Cost (£)": round(random.uniform(100, 500), 2),
+                        "Lead Time (days)": random.choice([7, 14, 21]),
+                        "Reliability (%)": round(random.uniform(85, 99), 2)
+                    })
+            vendor_df = pd.DataFrame(vendor_records)
+            st.dataframe(vendor_df, use_container_width=True)
+
+        with tabs[5]:
+            st.subheader("🔁 Reorder Parts")
+            df_spares["EOQ"] = ((2 * df_spares["Forecast Qty"] * 50) / 10) ** 0.5
+            df_spares["EOQ"] = df_spares["EOQ"].round().astype(int)
+            df_spares["Expected Shortage"] = df_spares["Forecast Qty"] - df_spares["Stock"]
+            df_spares["Recommended Qty"] = df_spares.apply(lambda r: max(r["EOQ"], r["Expected Shortage"]), axis=1)
+            st.dataframe(df_spares[["Part Name", "EOQ", "Recommended Qty", "Stock", "Forecast Qty"]], use_container_width=True)
+
+    # -----------------------------
+    # Retail Tabs
+    # -----------------------------
+    else:
+        st.subheader("💰 Retail Energy Supplier - Tariff & Demand")
+        tariff_df = pd.DataFrame([
+            {"Customer Type": "Residential", "Rate (£/MWh)": 165.5, "Volume (MWh)": 18000},
+            {"Customer Type": "Small Business", "Rate (£/MWh)": 172.1, "Volume (MWh)": 4200},
+            {"Customer Type": "Large Commercial", "Rate (£/MWh)": 158.2, "Volume (MWh)": 11500}
+        ])
+        st.dataframe(tariff_df, use_container_width=True)
+        st.info(call_gpt(f"Analyze tariff strategy: {tariff_df.to_dict(orient='records')}"))
